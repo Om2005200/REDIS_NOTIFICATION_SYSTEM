@@ -31,8 +31,43 @@ import httpx
 
 notifications_app=FastAPI()
 
+router=APIRouter()
+@notifications_app.on_event('startup')
+
+async def startup():
+    notifications_app.state.redis=Redis(host='localhost',port=6379,decode_responses=True)
+    
 
 
+
+
+
+class NOTIFICATIONS:
+
+
+
+    async def getting_the_master_data(self,order:dict,session:AsyncSession):
+
+
+        main_orders=order
+
+        for ord in main_orders:
+
+            stock_name=ord['STOCK_NAME']
+            new_order={
+                'STOCK_NAME':ord['STOCK_NAME'],
+                'LTP':ord['LTP']
+            }
+
+
+
+
+
+
+
+
+
+        
 
 
 
