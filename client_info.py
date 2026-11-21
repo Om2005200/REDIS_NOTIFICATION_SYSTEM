@@ -50,12 +50,12 @@ redis_client=redis.Redis(host='localhost',port='6379',decode_responses=True)
 
 
 
-
+client_websocket=[]
 class NOTIFICATIONS:
 
 
 
-    async def getting_the_master_data(self,order:list[dict],session:AsyncSession):
+    async def getting_the_master_data(self,order:list[dict]):
 
 
 
@@ -64,20 +64,22 @@ class NOTIFICATIONS:
 
         for orders in main_orders:
             stock_name=orders['STOCK_NAME']
-            current_ltp=orders['LTP']
-            ws_object=orders['WEBSOCKET_OBJECT']
+            current_ltp=orders['ENTRY_PRICE']
+            client_id=orders['CLIENT_ID']
+
+            
 
 
 
         new_order_set={
             'STOCK_NAME':stock_name,
-            'LTP':current_ltp,
-            'WEBSOCKET_OBJECT':ws_object
+            'ENTRY_PRICE':current_ltp,
+            'CLIENT_ID':client_id
         }
 
 
         await notifications_app.state.redis.set('client_order_history',json.dumps(new_order_set),ex=3600)
-        await notifications_app.state.redos.publish('notifications_data',json.dumps(new_order_set))
+        await notifications_app.state.redis.publish('notifications_data',json.dumps(new_order_set))
 
 
     async def the_main_subsriber(self):
@@ -85,7 +87,7 @@ class NOTIFICATIONS:
 
 
         main_input=notifications_app.state.redis.pubsub()
-        await main_input.subscribe(main_input)
+        await main_input.subscribe('notifications_data')
 
         async for incli in main_input.listen():
             main_responses=incli
@@ -93,19 +95,27 @@ class NOTIFICATIONS:
 
 
             for m in data_load:
-                client_webscoket_object=m['WEBSOCKET_OBJECT']
+                #client_webscoket_object=m['WEBSOCKET_OBJECT']
                 stock_name=m['STOCK_NAME']
                 entry_price=m['ENTRY_PRICE']
+                client_id=m['CLIENT_ID']
 
             main_info={
                 'YOUR_STOCK':stock_name,
-                'ENTRY_PRICE':entry_price
+                'ENTRY_PRICE':entry_price,
+                'CLIENT_ID':client_id
             }
 
-            await client_webscoket_object.send_json(main_info)
+
+            for c in client_websocket:
+                master_client_id=c[client_id]
+                
 
 
-            
+            await master_client_id.send_json(main_info)
+
+
+
 
 
         
@@ -113,7 +123,8 @@ n=NOTIFICATIONS()
 @router.websocket('/client/live/data/')
 
 
-async def placing_the_orders(websocket:WebSocket,session:AsyncSession):
+async def placing_the_orders(websocket:WebSocket):
+    await websocket.accept()
 
     order_database=[]
     client_mssgs=await websocket.receive_text()
@@ -126,12 +137,16 @@ async def placing_the_orders(websocket:WebSocket,session:AsyncSession):
         for m in mssg_loading:
             stock_names=m['STOCK_NAME']
             entry_price=m['ENTRY_PRICE']
+            client_id=m['CLIENT_ID']
 
         latest_orders={
             'STOCK_NAME':stock_names,
             'ENTRY_PRICE':entry_price,
-            'CLIENT_WEBSOCKET_OBJECT':websocket
+            'CLIENT_ID':client_id
         }
+        client_websocket.append({
+            client_id:websocket
+        })
 
         order_database.append(latest_orders)
     engine_response=await n.getting_the_master_data(order_database)
